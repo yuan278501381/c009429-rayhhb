@@ -1,0 +1,180 @@
+server:
+  port: 20301
+  servlet:
+    context-path: /dwork-dev
+spring:
+  mvc:
+    static-path-pattern: /static/**
+    servlet:
+      load-on-startup: 1
+  servlet:
+    multipart:
+      max-file-size: 500MB
+      max-request-size: 500MB
+  redis:
+    host: 10.147.162.212
+    port: 6379
+    password: hS2LP8b627CbqULw
+    database: 0
+  datasource:
+    type: com.alibaba.druid.pool.DruidDataSource
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://10.147.162.216:3306/dwork_v2_dev?useSSL=false&useUnicode=true&characterEncoding=utf8&useOldAliasMetadataBehavior=true&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&autoReconnect=true
+    username: dwork
+    password: SLeV5v^GsGtYSRTj
+    druid:
+      db-type: mysql
+      driver-class-name: com.mysql.cj.jdbc.Driver
+      initial-size: 10
+      min-idle: 10
+      max-active: 50
+      max-wait: 30000                  # 等待连接超时时间30s
+      time-between-eviction-runs-millis: 60000
+      min-evictable-idle-time-millis: 600000   # 10分钟
+      max-evictable-idle-time-millis: 1800000  # 30分钟
+      validation-query: SELECT 1
+      validation-query-timeout: 3       # 连接校验SQL超时时间（秒）
+      test-while-idle: true
+      test-on-borrow: true
+      test-on-return: false             # 通常不需要在归还时检测，避免增加归还延迟
+      keep-alive: true                  # 空闲时保活连接，防止数据库断开
+      async-init: true                  # 连接池异步初始化，项目启动更快
+      remove-abandoned: true
+      remove-abandoned-timeout: 180     # 3分钟未关闭则回收
+      log-abandoned: true               # 打印被回收的泄漏连接堆栈，排查问题
+      phyTimeoutMillis: 3600000         # 设置物理连接最大生命周期（1h）
+      filter:
+        stat:
+          enabled: true
+          slow-sql-millis: 5000
+          log-slow-sql: true
+          merge-sql: true
+        wall:
+          enabled: false
+          config:
+            update-allow: true
+            insert-allow: true
+            delete-allow: true
+            drop-table-allow: true
+        slf4j:
+          enabled: false
+      web-stat-filter:
+        enabled: true
+        url-pattern: /*
+        exclusions: /druid/*,*.js,*.gif,*.jpg,*.png,*.css,*.ico
+      stat-view-servlet:
+        enabled: true
+        url-pattern: /druid/*
+        reset-enable: false
+        login-username: root
+        login-password: 123456a
+      use-global-data-source-stat: true
+  groovy:
+    template:
+      check-template-location: false
+  freemarker:
+    check-template-location: false
+mybatis-plus:
+  configuration:
+    call-setters-on-nulls: true
+  global-config:
+    banner: off
+    db-config:
+      logic-delete-field: flag
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+logging:
+  config: classpath:logback-dev.xml
+project:
+  database-name: dwork_v2_dev
+  auth-coexistence: true
+  fast-bi:
+    host: http://10.147.162.212:9191
+    username: admin
+    password: FYvjLcL89PTxP78P
+  mqtt:
+    enable: true
+    host: tcp://10.147.162.212:1883
+    external: 10.147.162.212
+    client-id: dworkDev
+    username: system
+    password: vjMYwuenXRYP2hek
+    topic: default
+    timeout: 1000
+    authorization: Basic YWRtaW46YWRtaW4=
+  #校验周转箱位置
+  check-pass-location: true
+minio:
+  url: http://10.147.162.212:9000
+  path: /Dwork_Apps/Service/minio/data
+  accessKey: minioadmin
+  secretKey: qkUi5nZpdlv0HOm5
+  totalSpace: 512000
+  lastTime: 90
+  init:
+    - backups
+    - regression
+    - standard
+chinajey:
+  license:
+    validator:
+      enabled: true
+      file: ${licensePath:/Dwork_Apps/Deploy/dwork_licence}
+      public-key: MIGdMA0GCSqGSIb3DQEBAQUAA4GLADCBhwKBgQC7xAQszTFeFV/NVK98p/AWsa0PaSE+TRfWLIJvA5XFdKqayVmxwhg4IVYSnL8OLriTT8ryeE6vpRH0L8FWaG4csHBt3Q9ondj1y4wWTqhb7+lkoIxKl1tlvxe2/5omHGMXzgjZH1XC0wDrYfsbTaBugoLg36b90nV/2piYhlapDQIBAw==
+dwork:
+  init-xml: true
+  groovy-script-cache: false
+  groovy-script-debug: true
+virgo:
+  enable-sql-log: false
+  enable-redis-cache: false
+external-api:
+  name: test
+  pass: test
+  signature: test
+aspose:
+  target-path: /dwork-pdf
+ics:
+  api-key: ics
+  secret-key: a070873926b669b9ac39707da958e9d8
+  #根路径
+  base-url: http://10.147.162.212/ics-api-cs
+  #电子货架地址
+  electronic-tag: /electronic-tag
+  #搬运类型
+  transport-type: /open-api/transport-type
+  #品牌字段
+  brand-field: /open-api/all-fields
+  #下达任务
+  assign-task: /open-api/assign
+  #AGV任务
+  agv-info-list: /open-api/agv-info-list
+  #任务返程
+  return-task: /open-api/return
+  #任务取消
+  cancel-task: /open-api/cancel
+menu-codes:
+  platform:
+    platform-1:
+      - c1d3bfce-7d04-44a2-8cf8-313f0d07f31e
+      - b46713da-2eb3-4bb9-953b-88b95beb313b
+      - 2c922964-bbe2-497a-a676-ad047cafe29f
+      - b28eebbf-3b57-4634-b325-f8038cbf2ed0
+      - b36863c9-81a1-4a3b-a096-d517888f4259
+      - a2116340-f566-46ac-9ee1-2c927f66dbbe
+      - 6f7c02a0-7213-49a3-921b-10c6df6b108b
+      - 77c106af-69fc-4922-8e57-ef1e53ce32e8
+      - ef63969c-2691-4e4a-a618-f09b21e3bfe2
+      - 3ae43386-2439-4c05-a617-c76116fb66d9
+      - 3313ee2a-a81c-46b1-864e-c24d9a5bec94
+      - ce3e88bc-7efb-41cc-a425-2f7bfa078ec9
+      - dfbb0e92-e8b9-4ab6-ac39-1affde03070b
+      - c20c9db7-b2ac-4de4-a88b-25fa65bfc844
+      - adea613a-6d22-4387-8e91-3283de00005a
+      - d7df9508-021b-4b77-87df-3c34cdd4ec9d
+      - 27746ade-595f-4d11-a6b9-b4098a30b3e1
+      - e963887e-342f-4cd7-b861-8b3003e61e85
+      - 9f8da0d5-005e-43bb-8ca4-972fdb3aa2e2
+    platform-3:
+      - 7c84afc0-473e-4c1c-9c8a-30b7fbb02cb4
+      - ef63969c-2691-4e4a-a618-f09b21e3bfe5
