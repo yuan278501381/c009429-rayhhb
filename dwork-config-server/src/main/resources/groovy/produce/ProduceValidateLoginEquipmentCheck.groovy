@@ -6,7 +6,6 @@ import com.chinajey.application.common.exception.BusinessException
 import com.tengnat.dwork.modules.manufacturev2.domain.dto.ConfigNode
 import com.tengnat.dwork.modules.manufacturev2.domain.dto.ValidateRuleResult
 import com.tengnat.dwork.modules.manufacturev2.domain.entity.DwkStationReal
-import com.tengnat.dwork.modules.manufacturev2.mapper.ProduceExecuteCommonMapper
 import com.tengnat.dwork.modules.script.abstracts.ProduceValidateGroovyClass
 import com.tengnat.dwork.modules.script.service.BasicGroovyService
 
@@ -14,118 +13,106 @@ import java.text.SimpleDateFormat
 import java.time.LocalTime
 
 
-/***
- * 开始生产-设备点检检查
- * 1、检查设备必填
- * 2、并校验该设备在当班内(班次主数据中设置的白班、晚班起止时间点)是否有设备点检记录（白班、晚班各至少完成一次点检），如果有则通过,如果没有则报错
- *
- * */
-class ProduceValidateLoginEquipmentCheck extends  ProduceValidateGroovyClass {
+class ProduceValidateLoginEquipmentCheck extends ProduceValidateGroovyClass {
 
     BasicGroovyService basicGroovyService = SpringUtils.getBean("basicGroovyService")
 
-
-
     @Override
     ValidateRuleResult login(DwkStationReal stationReal, ConfigNode configNode, JSONObject jsonObject) {
-        // 当前登记的设备,Login
-
-        def firstResource = jsonObject.getJSONArray("resources")
-                .toJavaList(Map.class)
-                .stream()
-                .findFirst()
-                .orElse(null)
-
-        String equipmentCode = firstResource?.get("resourceCode")?.toString()
-
-       //当前的工位代码
-        String stationCode = stationReal.getStationCode()
+        def equipmentCode = extractEquipmentCode(jsonObject)
+        def stationCode = stationReal?.getStationCode()
 
         if (!equipmentCode) {
-            throw new BusinessException("工位【${stationCode}】,设备必须登记")
+            throw new BusinessException("工位【${stationCode}】必须登记设备！")
         }
 
-
-        //查当前设备的设备点检记录,查找逻辑,按当前时间,找到班次(是一个范围,比如晚8点到第2天早8点),然后按班次的时间范围,
-        //找出范围内的点检记录(状态为已完成-completed,处理结果为通过-pass),如果找到一个则通过,否则报错
-
-       //获得当前时间
-        Date now = new Date()
-
-        //获得白班\晚班的起止时间
-        String sSQLFetchTimebydayShift='select t.category,t1.begin_time,t1.end_time from dwk_produce_classes t\n'
-        sSQLFetchTimebydayShift+='inner join dwk_produce_classes_time t1 on t.id=t1.classes_id\n'
-        sSQLFetchTimebydayShift+='where t.is_delete=false and t1.is_delete=false'
-
-        def sqlResult1= basicGroovyService.findList(sSQLFetchTimebydayShift)
-
-        String nowStr = new SimpleDateFormat("HH:mm").format(now)
-        LocalTime nowTime = LocalTime.parse(nowStr)
-
-        String currentShift = null
-        String shiftBeginStr = null
-        String shiftEndStr = null
-
-        sqlResult1.each { row ->
-            def category = row["category"]
-            def beginStr = row["begin_time"]
-            def endStr = row["end_time"]
-
-            def begin = LocalTime.parse(beginStr)
-            def end = LocalTime.parse(endStr)
-
-            boolean isInShift
-            if (begin.isBefore(end)) {
-                // 非跨天（如白班：08:00~20:00）
-                isInShift = !nowTime.isBefore(begin) && nowTime.isBefore(end)
-            } else {
-                // 跨天（如夜班：20:00~08:00）
-                isInShift = !nowTime.isBefore(begin) || nowTime.isBefore(end)
-            }
-
-            if (isInShift) {
-                currentShift = category
-                shiftBeginStr = beginStr
-                shiftEndStr = endStr
-            }
+        def now = new Date()
+        def shift = getCurrentShift(now)
+        if (shift == null) {
+            throw new BusinessException("当前时间不在任何有效班次范围内，请检查班次主数据设置。")
         }
 
-        if (currentShift == null) {
-            throw new BusinessException("当前时间不在任何班次内,请检查班次主数据的设置!")
-        }
+        def timeRange = getShiftDateTimeRange(now, shift.begin, shift.end)
 
+        def sql = """
+            SELECT 1
+            FROM self_equipment_tally_sheet t
+            WHERE t.is_delete = false
+              AND t.status = 'completed'
+              AND t.handle_result = 'pass'
+              AND t.transaction_code = 'TR0003'
+              AND t.ledger_code = '${equipmentCode}'
+              AND t.completion_time BETWEEN '${timeRange.begin}' AND '${timeRange.end}'
+        """
 
-        //时间转换为日期,考虑跨天的情况
-        def todayStr = new SimpleDateFormat("yyyy-MM-dd").format(now)
-        def shiftBeginDateTime = "${todayStr} ${shiftBeginStr}"
-        def shiftEndDateTime = "${todayStr} ${shiftEndStr}"
-
-// 如果是跨天班次（夜班），要加一天
-        if (LocalTime.parse(shiftBeginStr).isAfter(LocalTime.parse(shiftEndStr))) {
-            def cal = Calendar.getInstance()
-            cal.time = now
-            cal.add(Calendar.DATE, 1)
-            def tomorrowStr = new SimpleDateFormat("yyyy-MM-dd").format(cal.time)
-            shiftEndDateTime = "${tomorrowStr} ${shiftEndStr}"
-        }
-        //查询当前班次时间内的设备点检记录
-        String sSQL = ""
-        sSQL += "select 1\n"
-        sSQL += "from self_equipment_tally_sheet t\n"
-        sSQL += "where is_delete = false\n"
-        sSQL += "  and t.status = 'completed'\n"
-        sSQL += "  and t.handle_result = 'pass'\n"
-        sSQL += "  and t.transaction_code = 'TR0003'\n"
-        sSQL += "  and t.ledger_code = '${equipmentCode}'\n"
-        sSQL += "  and t.completion_time between '${shiftBeginDateTime}' and '${shiftEndDateTime}'"
-
-        def sqlResult2= basicGroovyService.findOne(sSQL)
-
-        if(!sqlResult2)
-        {
-            throw new BusinessException("当前班次没有设备【${equipmentCode}】的点检记录,请检查后重试！!")
+        def result = basicGroovyService.findOne(sql)
+        if (!result) {
+            throw new BusinessException("当前班次内未检测到设备【${equipmentCode}】的合格点检记录，请先完成点检。")
         }
 
         return ValidateRuleResult.success()
+    }
+
+    private String extractEquipmentCode(JSONObject jsonObject) {
+        return jsonObject.getJSONArray("resources")
+                .toJavaList(Map.class)
+                .stream()
+                .findFirst()
+                .map { it.get("resourceCode")?.toString() }
+                .orElse(null)
+    }
+
+    private static class ShiftInfo {
+        String category
+        String begin
+        String end
+    }
+
+    private ShiftInfo getCurrentShift(Date now) {
+        def sql = """
+            SELECT t.category, t1.begin_time, t1.end_time
+            FROM dwk_produce_classes t
+            INNER JOIN dwk_produce_classes_time t1 ON t.id = t1.classes_id
+            WHERE t.is_delete = false AND t1.is_delete = false
+        """
+
+        def nowTime = LocalTime.parse(new SimpleDateFormat("HH:mm").format(now))
+
+        def shifts = basicGroovyService.findList(sql)
+        for (row in shifts) {
+            def begin = LocalTime.parse(row["begin_time"])
+            def end = LocalTime.parse(row["end_time"])
+
+            boolean inShift = begin.isBefore(end)
+                    ? !nowTime.isBefore(begin) && nowTime.isBefore(end)
+                    : !nowTime.isBefore(begin) || nowTime.isBefore(end)
+
+            if (inShift) {
+                return new ShiftInfo(
+                        category: row["category"],
+                        begin: row["begin_time"],
+                        end: row["end_time"]
+                )
+            }
+        }
+        return null
+    }
+
+    private Map<String, String> getShiftDateTimeRange(Date now, String beginStr, String endStr) {
+        def formatter = new SimpleDateFormat("yyyy-MM-dd")
+        def today = formatter.format(now)
+        def beginDateTime = "${today} ${beginStr}"
+        def endDateTime = "${today} ${endStr}"
+
+        if (LocalTime.parse(beginStr).isAfter(LocalTime.parse(endStr))) {
+            // 跨天夜班，end+1天
+            def cal = Calendar.getInstance()
+            cal.setTime(now)
+            cal.add(Calendar.DATE, 1)
+            def tomorrow = formatter.format(cal.time)
+            endDateTime = "${tomorrow} ${endStr}"
+        }
+
+        return [begin: beginDateTime, end: endDateTime]
     }
 }
